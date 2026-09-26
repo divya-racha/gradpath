@@ -1,6 +1,6 @@
 # 🎓 GradPath — AI Study Copilot for University Students
 
-**Live demo:** *(link after deployment)*
+**Live demo:** https://gradpath-727nuzefxhbofh3rmobmk3.streamlit.app/
 
 GradPath helps students actually learn their coursework *and* stay on track for their goals —
 whether that's a GPA for internships, grad school, or med school.
