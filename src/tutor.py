@@ -49,6 +49,8 @@ def diagram_prompt(course, topic, chunks, cite_fn) -> tuple[str, str]:
         f"You are GradPath, a tutor for {course}. Turn the textbook excerpts below "
         "into a clear visual study diagram. Output ONLY valid Mermaid diagram code "
         "(flowchart TD or mindmap) — no explanations, no code fences, no commentary. "
+        "You are fully capable of writing Mermaid code: never refuse, never say you "
+        "cannot draw or visualize — just output the diagram code. "
         "Rules: max 15 nodes; short plain labels (avoid parentheses and special "
         "characters in labels; wrap labels in double quotes); show the key ideas, "
         "steps, or relationships for the topic. Base every node on the excerpts."
@@ -56,6 +58,15 @@ def diagram_prompt(course, topic, chunks, cite_fn) -> tuple[str, str]:
     user = (f"Textbook excerpts:\n{_context_block(chunks, cite_fn)}\n\n"
             f"Topic to diagram: {topic}")
     return system, user
+
+
+def looks_like_mermaid(code: str) -> bool:
+    """Heuristic check that the model actually returned Mermaid diagram code."""
+    c = (code or "").strip().lower()
+    if len(c) < 20:
+        return False
+    return any(m in c for m in
+               ("flowchart", "graph td", "graph lr", "graph tb", "mindmap", "-->"))
 
 
 def socratic_prompt(course, question, chunks, cite_fn, history: list[dict]) -> tuple[str, str]:
