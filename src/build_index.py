@@ -22,11 +22,13 @@ ART = ROOT / "artifacts"
 
 BOOKS = [
     # (pdf filename, display name, course label)
-    ("microbiology.pdf", "Microbiology (OpenStax)", "Microbiology"),
-    ("psychology-2e.pdf", "Psychology 2e (OpenStax)", "Psychology"),
-    ("biology-2e.pdf", "Biology 2e (OpenStax)", "Biology / Genetics"),
-    ("Calculus_Volume_1.pdf", "Calculus Volume 1 (OpenStax)", "Calculus I"),
-    ("openstax-introductory-statistics.pdf", "Introductory Statistics (OpenStax)", "Statistics"),
+    ("microbiology.pdf", "Microbiology (OpenStax)", "BIOL 2321 · Microbiology"),
+    ("psychology-2e.pdf", "Psychology 2e (OpenStax)", "PSYC 2301 · Psychology"),
+    ("biology-2e.pdf", "Biology 2e (OpenStax)", "BIOL 1306 · Biology"),
+    ("Calculus_Volume_1.pdf", "Calculus Volume 1 (OpenStax)", "MATH 2413 · Calculus I"),
+    ("openstax-introductory-statistics.pdf", "Introductory Statistics (OpenStax)", "MATH 1342 · Statistics"),
+    ("chemistry-2e.pdf", "Chemistry 2e (OpenStax)", "CHEM 1311/1312 · Chemistry"),
+    ("college-physics.pdf", "College Physics (OpenStax)", "PHYS 1301 · Physics"),
 ]
 
 CHUNK_WORDS = 450
