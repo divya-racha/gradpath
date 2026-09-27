@@ -12,6 +12,8 @@ import sys
 from pathlib import Path
 
 import streamlit as st
+import streamlit.components.v1 as components
+import html as htmlmod
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 from rag import TextbookRetriever          # noqa: E402
@@ -20,6 +22,22 @@ import tutor as tutor_prompts              # noqa: E402
 import gpa as gpa_math                     # noqa: E402
 
 st.set_page_config(page_title="GradPath — AI Study Copilot", page_icon="🎓", layout="wide")
+
+
+def render_mermaid(code: str, height: int = 520):
+    """Render Mermaid diagram code (concept map / flowchart) in the app."""
+    code = code.strip()
+    if code.startswith("```"):
+        lines = code.split("\n")
+        lines = lines[1:] if len(lines) > 1 else []
+        code = "\n".join(lines).rsplit("```", 1)[0]
+    if code.lstrip().startswith("mermaid"):
+        code = code.lstrip()[len("mermaid"):].strip()
+    safe = htmlmod.escape(code)
+    page = f"""<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<pre class="mermaid" style="background:#fff;border-radius:12px;padding:16px;">{safe}</pre>
+<script>mermaid.initialize({{startOnLoad:true, theme:'default'}});</script>"""
+    components.html(page, height=height, scrolling=True)
 
 # ---------------------------------------------------------------- styles
 st.markdown("""
@@ -62,7 +80,7 @@ with st.sidebar:
                    "The GPA planner works without one.")
     st.divider()
     course = st.selectbox("📖 Course", retr.courses)
-    st.caption("Answers are grounded in the OpenStax textbook for this course, with citations.")
+    st.caption("Built for UH courses — answers are grounded in the OpenStax textbook for this class, with citations.")
 
 tab_tutor, tab_quiz, tab_gpa = st.tabs(["💬 Tutor", "📝 Quiz Me", "🎯 GPA Planner"])
 
@@ -72,12 +90,68 @@ with tab_tutor:
                     help="Explain: teaches directly. Socratic: guides you with questions instead of answers.")
     if "chat" not in st.session_state:
         st.session_state.chat = []
+
+    # --- follow-up actions from the buttons under the last answer ---
+    fu = st.session_state.pop("followup", None)
+    if fu:
+        last = st.session_state.get("last_qa", {})
+        if not api_key:
+            st.warning("Add your free Gemini API key in the sidebar first.")
+        elif not last:
+            st.warning("Ask a question first, then use the follow-up buttons.")
+        else:
+            try:
+                client = make_client(provider, api_key)
+                if fu == "simpler":
+                    system, user = tutor_prompts.simplify_prompt(
+                        last["course"], last["q"], last["chunks"], TextbookRetriever.cite)
+                    with st.spinner("Simplifying…"):
+                        ans = client.generate(system, user, temperature=0.5)
+                    st.session_state.chat.append(
+                        {"role": "assistant", "text": ans, "cites": last["cites"]})
+                elif fu == "visualize":
+                    system, user = tutor_prompts.diagram_prompt(
+                        last["course"], last["q"], last["chunks"], TextbookRetriever.cite)
+                    with st.spinner("Drawing your diagram…"):
+                        code = client.generate(system, user, temperature=0.3, max_tokens=1200)
+                    st.session_state.diagram = {"topic": last["q"], "code": code}
+                elif fu == "quizme":
+                    st.session_state.quiz_topic = last["q"]
+                    st.info("📝 Topic sent to the Quiz Me tab — open it and hit **Generate quiz**.")
+            except Exception as e:
+                st.error(f"Tutor error: {e}")
+
     for m in st.session_state.chat:
         with st.chat_message(m["role"]):
             st.markdown(m["text"])
             if m.get("cites"):
                 st.markdown(f"<div class='cite'>📚 Sources:<br>{'<br>'.join(m['cites'])}</div>",
                             unsafe_allow_html=True)
+
+    # --- one-tap follow-ups under the latest answer ---
+    if (st.session_state.chat and st.session_state.chat[-1]["role"] == "assistant"
+            and st.session_state.get("last_qa")):
+        b1, b2, b3 = st.columns(3)
+        if b1.button("🔍 Explain simpler", key="fu_simpler"):
+            st.session_state.followup = "simpler"
+            st.rerun()
+        if b2.button("🖼️ Visualize this", key="fu_visual"):
+            st.session_state.followup = "visualize"
+            st.rerun()
+        if b3.button("📝 Quiz me on this", key="fu_quiz"):
+            st.session_state.followup = "quizme"
+            st.rerun()
+
+    if st.session_state.get("diagram"):
+        d = st.session_state.diagram
+        with st.expander(f"🖼️ Visual: {d['topic'][:80]}", expanded=True):
+            try:
+                render_mermaid(d["code"])
+            except Exception as e:
+                st.error(f"Couldn't render the diagram: {e}")
+            if st.button("Close visual"):
+                st.session_state.diagram = None
+                st.rerun()
 
     q = st.chat_input(f"Ask about {course}…")
     if q:
@@ -92,7 +166,9 @@ with tab_tutor:
         try:
             client = make_client(provider, api_key)
             if mode == "Explain":
-                system, user = tutor_prompts.explain_prompt(course, q, chunks, TextbookRetriever.cite)
+                system, user = tutor_prompts.explain_prompt(
+                    course, q, chunks, TextbookRetriever.cite,
+                    [{"role": m["role"], "text": m["text"]} for m in st.session_state.chat[:-1]])
                 temp = 0.4
             else:
                 system, user = tutor_prompts.socratic_prompt(
@@ -105,12 +181,15 @@ with tab_tutor:
             st.error(f"Tutor error: {e}")
             st.stop()
         st.session_state.chat.append({"role": "assistant", "text": ans, "cites": cites})
+        st.session_state.last_qa = {"q": q, "chunks": chunks, "cites": cites, "course": course}
         with st.chat_message("assistant"):
             st.markdown(ans)
             st.markdown(f"<div class='cite'>📚 Sources:<br>{'<br>'.join(cites)}</div>",
                         unsafe_allow_html=True)
     if st.session_state.chat and st.button("Clear conversation"):
         st.session_state.chat = []
+        st.session_state.last_qa = None
+        st.session_state.diagram = None
         st.rerun()
 
 # ================================================================ QUIZ
@@ -118,7 +197,8 @@ with tab_quiz:
     st.subheader(f"Test yourself on {course}")
     col1, col2 = st.columns([3, 1])
     with col1:
-        topic = st.text_input("Topic", placeholder="e.g. cellular respiration, hypothesis testing, derivatives")
+        topic = st.text_input("Topic", value=st.session_state.get("quiz_topic", ""),
+                              placeholder="e.g. cellular respiration, hypothesis testing, derivatives")
     with col2:
         n_q = st.slider("# questions", 3, 8, 5)
     if st.button("Generate quiz", type="primary"):
