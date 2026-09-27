@@ -114,7 +114,19 @@ with tab_tutor:
                         last["course"], last["q"], last["chunks"], TextbookRetriever.cite)
                     with st.spinner("Drawing your diagram…"):
                         code = client.generate(system, user, temperature=0.3, max_tokens=1200)
-                    st.session_state.diagram = {"topic": last["q"], "code": code}
+                        if not tutor_prompts.looks_like_mermaid(code):
+                            # Model dodged the diagram request — one firmer retry.
+                            retry_system = (system + " Your previous reply was not valid "
+                                            "Mermaid code. Reply NOW with ONLY the Mermaid "
+                                            "diagram code and nothing else.")
+                            code = client.generate(retry_system, user,
+                                                   temperature=0.2, max_tokens=1200)
+                    if tutor_prompts.looks_like_mermaid(code):
+                        st.session_state.diagram = {"topic": last["q"], "code": code}
+                    else:
+                        st.session_state.diagram = None
+                        st.error("Couldn't generate a diagram for this one — "
+                                 "try pressing 🖼️ Visualize this again.")
                 elif fu == "quizme":
                     st.session_state.quiz_topic = last["q"]
                     st.info("📝 Topic sent to the Quiz Me tab — open it and hit **Generate quiz**.")
