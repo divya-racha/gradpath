@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+        # requirements.txt pins the CPU torch wheel; the sentence-transformer
+        # model (~90MB) downloads on first TextbookRetriever use.
+
+      - name: Compile check
+        run: python -m compileall -q src/ app/
+
+      - name: Retrieval smoke test
+        run: python src/test_retrieval.py
+
+      - name: Retrieval eval harness
+        run: python src/eval/run_eval.py
+        # Offline, no API keys. Can take several minutes on CPU runners
+        # (MiniLM embedding of ~100 queries + FAISS search). Scores are
+        # expected to be low until the index has real chapter labels; the step
+        # validates the harness runs end-to-end and produces
+        # artifacts/eval_report.md.
