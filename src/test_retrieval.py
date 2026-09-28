@@ -11,24 +11,30 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from rag import TextbookRetriever
 
 QUERIES = [
-    ("Microbiology", "What is the difference between gram-positive and gram-negative bacteria?"),
-    ("Microbiology", "How do viruses replicate inside host cells?"),
-    ("Psychology", "What are the stages of cognitive development according to Piaget?"),
-    ("Psychology", "Explain classical conditioning with an example"),
-    ("Biology / Genetics", "How does Mendel's law of independent assortment work?"),
-    ("Biology / Genetics", "What happens during DNA replication?"),
-    ("Calculus I", "What is the definition of a derivative?"),
-    ("Calculus I", "How do you find the area under a curve using integrals?"),
-    ("Statistics", "What is a p-value and how is it interpreted?"),
-    ("Statistics", "Explain the difference between correlation and causation"),
+    ("BIOL 2321 · Microbiology", "What is the difference between gram-positive and gram-negative bacteria?"),
+    ("BIOL 2321 · Microbiology", "How do viruses replicate inside host cells?"),
+    ("PSYC 2301 · Psychology", "What are the stages of cognitive development according to Piaget?"),
+    ("PSYC 2301 · Psychology", "Explain classical conditioning with an example"),
+    ("BIOL 1306 · Biology", "How does Mendel's law of independent assortment work?"),
+    ("BIOL 1306 · Biology", "What happens during DNA replication?"),
+    ("MATH 2413 · Calculus I", "What is the definition of a derivative?"),
+    ("MATH 2413 · Calculus I", "How do you find the area under a curve using integrals?"),
+    ("MATH 1342 · Statistics", "What is a p-value and how is it interpreted?"),
+    ("MATH 1342 · Statistics", "Explain the difference between correlation and causation"),
+    ("CHEM 1311/1312 · Chemistry", "What is the ideal gas law and what do its variables represent?"),
+    ("CHEM 1311/1312 · Chemistry", "How does VSEPR theory predict the shape of a molecule?"),
+    ("PHYS 1301 · Physics", "What does Newton's second law of motion state?"),
+    ("PHYS 1301 · Physics", "Explain the difference between speed and velocity"),
 ]
 
 EXPECT = {
-    "Microbiology": ["gram", "peptidoglycan", "cell wall"],
-    "Psychology": ["piaget", "conditioning", "stimulus"],
-    "Biology / Genetics": ["mendel", "dna", "chromosome"],
-    "Calculus I": ["derivative", "limit", "integral"],
-    "Statistics": ["p-value", "hypothesis", "correlation"],
+    "BIOL 2321 · Microbiology": ["gram", "peptidoglycan", "cell wall"],
+    "PSYC 2301 · Psychology": ["piaget", "conditioning", "stimulus"],
+    "BIOL 1306 · Biology": ["mendel", "dna", "chromosome"],
+    "MATH 2413 · Calculus I": ["derivative", "limit", "integral"],
+    "MATH 1342 · Statistics": ["p-value", "hypothesis", "correlation"],
+    "CHEM 1311/1312 · Chemistry": ["ideal gas", "vsepr", "mole"],
+    "PHYS 1301 · Physics": ["newton", "velocity", "force"],
 }
 
 
