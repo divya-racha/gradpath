@@ -39,6 +39,23 @@ def render_mermaid(code: str, height: int = 520):
 <script>mermaid.initialize({{startOnLoad:true, theme:'default'}});</script>"""
     components.html(page, height=height, scrolling=True)
 
+
+def try_make_diagram(client, course, topic, chunks):
+    """Generate a Mermaid diagram for a topic. Returns the extracted
+    diagram code, or None if the model dodged twice."""
+    system, user = tutor_prompts.diagram_prompt(
+        course, topic, chunks, TextbookRetriever.cite)
+    code = client.generate(system, user, temperature=0.3, max_tokens=1200)
+    if not tutor_prompts.looks_like_mermaid(code):
+        # Model dodged the diagram request — one firmer retry.
+        retry_system = (system + " Your previous reply was not valid Mermaid "
+                        "code. Reply NOW with ONLY the Mermaid diagram code "
+                        "and nothing else. The first line must be "
+                        "'flowchart TD' or 'mindmap'.")
+        code = client.generate(retry_system, user,
+                               temperature=0.2, max_tokens=1200)
+    return tutor_prompts.extract_mermaid_block(code)
+
 # ---------------------------------------------------------------- styles
 st.markdown("""
 <style>
@@ -110,18 +127,10 @@ with tab_tutor:
                     st.session_state.chat.append(
                         {"role": "assistant", "text": ans, "cites": last["cites"]})
                 elif fu == "visualize":
-                    system, user = tutor_prompts.diagram_prompt(
-                        last["course"], last["q"], last["chunks"], TextbookRetriever.cite)
                     with st.spinner("Drawing your diagram…"):
-                        code = client.generate(system, user, temperature=0.3, max_tokens=1200)
-                        if not tutor_prompts.looks_like_mermaid(code):
-                            # Model dodged the diagram request — one firmer retry.
-                            retry_system = (system + " Your previous reply was not valid "
-                                            "Mermaid code. Reply NOW with ONLY the Mermaid "
-                                            "diagram code and nothing else.")
-                            code = client.generate(retry_system, user,
-                                                   temperature=0.2, max_tokens=1200)
-                    if tutor_prompts.looks_like_mermaid(code):
+                        code = try_make_diagram(client, last["course"],
+                                                last["q"], last["chunks"])
+                    if code:
                         st.session_state.diagram = {"topic": last["q"], "code": code}
                     else:
                         st.session_state.diagram = None
@@ -177,6 +186,27 @@ with tab_tutor:
         cites = [f"[{i+1}] {TextbookRetriever.cite(c)}" for i, c in enumerate(chunks)]
         try:
             client = make_client(provider, api_key)
+            if tutor_prompts.is_diagram_request(q):
+                # Student asked for a visual in chat — draw it instead of
+                # explaining, so the model never gets a chance to refuse.
+                with st.spinner("Drawing your diagram…"):
+                    code = try_make_diagram(client, course, q, chunks)
+                st.session_state.last_qa = {"q": q, "chunks": chunks,
+                                            "cites": cites, "course": course}
+                if code:
+                    st.session_state.diagram = {"topic": q, "code": code}
+                    st.session_state.chat.append(
+                        {"role": "assistant",
+                         "text": "Here's your diagram — it's open in the visual panel above. 👆",
+                         "cites": cites})
+                else:
+                    st.session_state.chat.append(
+                        {"role": "assistant",
+                         "text": "I couldn't turn that into a diagram — try rephrasing "
+                                 "it, or ask me to explain first and then press "
+                                 "🖼️ Visualize this under my answer.",
+                         "cites": cites})
+                st.rerun()
             if mode == "Explain":
                 system, user = tutor_prompts.explain_prompt(
                     course, q, chunks, TextbookRetriever.cite,
