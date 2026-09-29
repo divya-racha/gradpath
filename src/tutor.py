@@ -19,6 +19,10 @@ def explain_prompt(course, question, chunks, cite_fn, history: list[dict] | None
         "a brief general pointer — never invent textbook facts. "
         "This is an ongoing conversation: use the conversation history for context "
         "(pronouns like 'it', 'that', or 'why' may refer to earlier messages). "
+        "If the student asks for a photo, picture, or image of something, do not "
+        "just say you cannot provide images — briefly note you can't show photos, "
+        "then suggest they press the 'Visualize this' button under your answer "
+        "for a labeled study diagram of the same thing. "
         "End with one short check-for-understanding question."
     )
     hist_block = ""
@@ -47,8 +51,10 @@ def simplify_prompt(course, question, chunks, cite_fn) -> tuple[str, str]:
 def diagram_prompt(course, topic, chunks, cite_fn) -> tuple[str, str]:
     system = (
         f"You are GradPath, a tutor for {course}. Turn the textbook excerpts below "
-        "into a clear visual study diagram. Output ONLY valid Mermaid diagram code "
-        "(flowchart TD or mindmap) — no explanations, no code fences, no commentary. "
+        "into a clear visual study diagram. Your ENTIRE response must be valid "
+        "Mermaid diagram code and nothing else — no sentences, no explanations, "
+        "no code fences, no commentary, no apologies. The FIRST line of your "
+        "response must be exactly 'flowchart TD' or 'mindmap'. "
         "You are fully capable of writing Mermaid code: never refuse, never say you "
         "cannot draw or visualize — just output the diagram code. "
         "Rules: max 15 nodes; short plain labels (avoid parentheses and special "
@@ -60,13 +66,57 @@ def diagram_prompt(course, topic, chunks, cite_fn) -> tuple[str, str]:
     return system, user
 
 
+def extract_mermaid_block(text: str) -> str | None:
+    """Pull the Mermaid diagram code out of a model response.
+
+    Handles fenced blocks (```mermaid ... ```), bare code, and prose
+    wrapped around code. Returns None if no plausible diagram found.
+    """
+    t = (text or "").strip()
+    if not t:
+        return None
+    # Prefer an explicit fenced block.
+    if "```" in t:
+        parts = t.split("```")
+        for i, p in enumerate(parts):
+            if i % 2 == 1:  # inside a fence
+                block = p.strip()
+                if block.lower().startswith("mermaid"):
+                    block = block[len("mermaid"):].strip()
+                if _starts_with_diagram_type(block):
+                    return block
+        return None
+    if _starts_with_diagram_type(t):
+        return t
+    return None
+
+
+def _starts_with_diagram_type(code: str) -> bool:
+    first = code.lstrip().lower()
+    return first.startswith(("flowchart", "graph td", "graph lr",
+                             "graph tb", "graph bt", "mindmap"))
+
+
 def looks_like_mermaid(code: str) -> bool:
-    """Heuristic check that the model actually returned Mermaid diagram code."""
-    c = (code or "").strip().lower()
-    if len(c) < 20:
-        return False
-    return any(m in c for m in
-               ("flowchart", "graph td", "graph lr", "graph tb", "mindmap", "-->"))
+    """Strict check that the model actually returned Mermaid diagram code.
+
+    The response (or a fenced block inside it) must BEGIN with a Mermaid
+    diagram type declaration — substring matches anywhere in prose no
+    longer pass.
+    """
+    return extract_mermaid_block(code) is not None
+
+
+_DIAGRAM_KEYWORDS = ("diagram", "visualize", "visualise", "visual",
+                     "flowchart", "flow chart", "mindmap", "mind map",
+                     "concept map", "draw", "illustrate", "illustration",
+                     "sketch", "image", "picture", "photo")
+
+
+def is_diagram_request(text: str) -> bool:
+    """Heuristic: did the student ask for a diagram/visual in chat?"""
+    t = (text or "").lower()
+    return any(k in t for k in _DIAGRAM_KEYWORDS)
 
 
 def socratic_prompt(course, question, chunks, cite_fn, history: list[dict]) -> tuple[str, str]:
